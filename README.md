@@ -57,7 +57,7 @@ Main components include:
 - family management interface
 - real-time location display
 - settings and notifications panel
-## 🖼 Interface
+
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/139201a2-046a-4f8b-b719-f7d860c8df05" width="800"/>
@@ -66,6 +66,7 @@ Main components include:
 <p align="center">
   <img src="https://github.com/user-attachments/assets/d5ca44a6-1cd4-4a5d-8d22-655940aadce8" width="800"/>
 </p>
+
 ---
 
 ## 📊 Project Purpose
