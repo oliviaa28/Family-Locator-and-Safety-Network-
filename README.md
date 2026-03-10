@@ -1,4 +1,4 @@
-# 📍 Family Locator & Safety Network
+# 📍 Family Locator & Safety Network ✨
 
 Client–server application designed to improve family safety and coordination through **real-time location sharing and emergency alerts**.
 
@@ -16,7 +16,7 @@ The system allows family members to stay connected, track locations and receive 
 
 ---
 
-## 🏗 Architecture
+## 🏗 Architecture ｡𖦹°‧
 
 The system follows a **centralized client–server architecture**.
 
@@ -33,7 +33,7 @@ is stored in a **relational SQL database** to ensure persistence.
 
 ---
 
-## 🚀 Features
+##  ⋆｡‧˚ʚ Featuresɞ˚‧｡⋆
 
 - user **registration and authentication**
 - creation and management of **family groups**
