@@ -1,0 +1,16 @@
+ gcc server.c date.c -lsqlite3 -o server
+ ./server
+
+gcc test.c -o test -lraylib -lm -lpthread -ldl -lrt -lX11 -lGL
+
+g++ main.cpp conectare.cpp -o cl \
+  -lraylib -lm -lpthread -ldl -lrt -lX11
+  ./cl
+
+  g++ main2.cpp conectare.cpp -o cl \
+  -lraylib -lm -lpthread -ldl -lrt -lX11
+  ./cl
+
+g++ main_test.cpp conectare.cpp -o cl \
+  -lraylib -lm -lpthread -ldl -lrt -lX11
+./cl

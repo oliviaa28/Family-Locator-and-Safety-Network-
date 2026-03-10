@@ -1,0 +1,446 @@
+#include<sys/types.h>
+#include<sys/socket.h>
+#include<pthread.h>
+#include<netinet/in.h>
+#include<errno.h>
+#include<signal.h>
+#include<unistd.h>
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<stdbool.h>
+#include<fcntl.h>
+//#include<json-c/json.h>
+
+// server TCP concurent cu I/O multiplexing
+#define PORT 2728
+#define MAX_CLIENTI 20
+#define HANDLE_ERROR(mesaj)\
+        { perror(mesaj); return errno;}
+
+extern int errno;
+/*
+typedef struct thData{
+    int idThread;
+    int cl;
+}thData; */
+
+typedef struct{
+    int id_family;
+    char nume_locatie[50];
+    double lat, lon;
+    int raza; //ce raza acopera locatia
+} locatie;
+
+typedef struct{
+    int fd;         //descriptor
+    char nume[40];
+    char parola[40];
+    int id_family[5]; 
+    int nr_familii;               
+    double lat, lon;                //ultima loc. inregistrata 
+    bool logat;               
+}client_info;
+
+client_info clt[MAX_CLIENTI];
+
+  struct sockaddr_in server, from; //from -pentru client 
+  struct timeval tv;
+  fd_set read_fds, active_fds;
+  int sd, client, optval=1, fd, max_fds, lg;
+
+//___________________________________________________________________________________________
+
+char* upper( char *cuvant){
+    int i=0;
+    char c;
+    while( cuvant[i] ){
+        c=cuvant[i];
+        cuvant[i]=toupper((unsigned char)c);
+        i++;
+    }
+    return cuvant;
+}
+
+void eliminare_newline(char *cuvant ){
+    char *pozitie= strchr(cuvant , '\n');
+    if (pozitie != NULL )
+        *pozitie= '\0';
+}
+
+void trim( char *cuvant){ //doar de la inceput sau final 
+   char *f; // final
+   int lg= strlen(cuvant) -1 ;
+    
+   while( isspace((unsigned char)*cuvant) ) // de la inceput
+         cuvant++;
+
+    if(*cuvant == 0 ) return; 
+    
+    f= cuvant+lg;
+    while( cuvant < f && issspace((unsigned char)*f )) f--;
+    f[1]= '\0';
+}
+
+char* extragere_comanda(char *cerere, char *parametrii){
+   char *pozitie = strstr(cerere,":");
+
+  if ( pozitie == NULL) return NULL;
+
+    *pozitie = '\0';  pozitie++;
+    strcpy(parametrii, pozitie);
+
+    upper(cerere);
+    trim(parametrii);
+ return cerere;
+}
+
+//_______________________________________________________________________________________
+void initializare_clienti(){
+    for(int a=0; a< MAX_CLIENTI; a++){
+        clt[a].fd= -1;
+        clt[a].logat = false;
+    }
+}
+
+void incarca_familie(int poz ){
+    char buffer[300];
+    int fd= open("membrii.familie.txt", O_RDONLY);
+    int n= read (fd, buffer, sizeof(buffer)-1);
+    if(n==-1) HANDLE_ERROR("...");
+
+    buffer[n]='\0';
+    close(fd);
+
+    clt[poz].nr_familii=0;
+
+    char *linie= strtok(buf, "\n");
+    while(linie != NULL){
+        int id; char usr[40];
+        if( sscanf(linie, "%d | %s ", &id, usr)== 2)
+            if(strcmp(usr, clt[poz].nume == 0)){
+              int x = clt[poz].nr_familii;
+              clt[poz].id_family[x]= id; 
+              clt[poz].nr_familii++;
+            }
+       linie= strtok(NULL, '\n');
+    }
+
+}
+
+void initializare(){
+   if((sd = socket(AF_INET, SOCK_STREAM, 0)) < 0) //creeare socket
+        HANDLE_ERROR("[SERVER] Eroare la socket");
+
+    setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
+    bzero (&server, sizeof(server));
+
+    server.sin_family= AF_INET;
+    server.sin_addr.s_addr = htonl(INADDR_ANY);
+    server.sin_port= htons(PORT);
+
+    //atasare socket 
+    if( bind(sd, (struct sockaddr *) &server, sizeof(struct sockaddr)) ==-1)
+       HANDLE_ERROR("[SERVER] Eroare la bind. \n");
+    
+    //punem serverul sa asculte daca vin clienti pt conecatre 
+    if( listen(sd, MAX_CLIENTI) == -1)
+        HANDLE_ERROR("[SERVER] Eroare la functia listen \n");
+    
+    FD_ZERO (&active_fds);
+    FD_SET (sd, &active_fds);         //adaugam socketul pe care tocmai l.am creeat
+
+    tv.tv_sec =1;  tv.tv_usec=0;     //asteptam o secunda 
+
+    max_fds = sd;                   //numarul maixim de descriptori folositi   
+
+    initializare_clienti(); 
+
+}
+
+void servire_clienti()
+{
+    while(1){
+        //ajustam multimea descriptorilor care sunt utilizati (copiem in read_fds)
+        bcopy( (char *) &active_fds, (char *) &read_fds, sizeof(read_fds)); 
+
+        if( select (max_fds+1, &read_fds, NULL, NULL, &tv) < 0)
+           HANDLE_ERROR("[SERVER] Eroare la functia select. \n");
+
+        //verificam daaca socketul e pregatit pt a accepta clienti 
+        if( FD_ISSET (sd, &read_fds)){
+            lg = sizeof(from);
+            bzero(&from, sizeof(from));
+           //acceptam un client
+            client = accept( sd, (struct sockaddr *) &from, &lg);
+            if(client < 0 )
+               HANDLE_ERROR("[SERVER] Eroare la accept \n");
+            if (max_fds < client)
+                max_fds=client;   
+
+            FD_SET(client, &active_fds); //adaugam noul socket in multimea descriptorilor activi
+            adauga_client(client);
+            
+             // printf("[server] S-a conectat clientul cu descriptorul %d, de la adresa %s.\n",client, conv_addr (from));
+	        //  fflush (stdout);
+             }
+
+         for( fd =0; fd<=max_fds; fd++){ //indiferent daca s-a conectat un client sau nu 
+            if(fd != sd && FD_ISSET(fd, &read_fds)){
+                //citire   mesaj de la clirnt 
+                citire_mesaj(fd); //in interior l acitire avem si procesare 
+            }
+     }
+  }
+}
+
+void adauga_client(int fd){
+    //+ trebuie adaugata si actualizarea fsiiserelor cu datele
+  int x= cauta_client(fd);
+  if ( x != -1){
+    printf("[SERVER | adauga client] Eroare...client deja existent. \n");
+  return ;}
+  
+  int ok=0;
+    for(int i=0; i<MAX_CLIENTI; i++){
+        if(clt[i].fd == -1){ //loc liber 
+            ok=1;
+            clt[i].fd = fd;
+            clt[i].logat = false;
+            break;
+        }
+    }
+  if (ok==0){
+    printf("[EROARE LOGIN] Prea multi clienti conectati. \n"); close (fd);}
+
+}
+
+int cauta_client(int fd){
+int ok=0, pozitie;
+    for( int i=0; i<MAX_CLIENTI; i++ ){
+       if( clt[i].fd == fd){ //am gasit clientul cu care lucram momentan 
+        ok=1;
+        pozitie=i;
+        break;
+       }
+    }
+
+   if( ok == 0){
+    printf("[SERVER | cauta client] Eroare...client necunoscut. \n");
+    return -1 ;} 
+
+   return pozitie;
+}
+
+/*
+void sterge_client(int fd){
+    int poz= cauta_client(fd);
+    clt[poz].fd = -1; clt[poz].logat = false;
+        //printf("[SERVER] deconectare client: desc= %d. \n", fd);
+}*/
+
+void citire_mesaj(int fd){  
+
+  int poz= cauta_client(fd);
+  char buffer[300]; 
+  int bytes;
+  bzero(buffer, sizeof(buffer));
+
+   bytes = read(fd, buffer, sizeof(buffer)-1 );
+  if( bytes < 0)
+     HANDLE_ERROR("[SERVER | citire mesaj] eroare la citirea msg \n");
+  else if (bytes == 0) //deconectare client 
+    {  sterge_client(fd);
+       //inchidere socket
+        close(fd);
+       FD_CLR(fd, &active_fds); // scoatem fd din lista descriptorilor activi
+       printf("[SERVER] S-a deconectat un client de la descriptoruk %d. \n", fd);
+    }
+  else{
+    buffer[bytes] = '\0';
+    eliminare_newline(buffer);
+    proceseaza_mesaj(buffer, poz, fd);
+  }
+}
+
+//___________________________________________ FUNCTIONALITATI ____________________________________________
+  
+void login( char* parametrii, int poz){
+    char username[40], parola[40], buffer[300];
+        sscanf(parametrii, "%s %s", username, parola);
+    
+    int fd= open("utilizatori.txt", O_RDONLY);
+    if(fd== -1)
+       HANDLE_ERROR("[SERVER | login] eroare la deschiderea fis utilizatori ");
+    
+    int nr= read(fd, buffer, sizeof(buffer) -1);
+    buffer[n] = '\0';
+
+    
+    char *linie = strtok(buffer, "\n");
+    //int sscanf(const char *str, const char *format, ...);
+    while( linie !=NULL){
+        char u[40], p[40];
+        if ( sscanf(linie, "%s | %s", u, p)==2){
+            trim(u);
+            if(strcmp(u, username) == 0 )
+               if (strcmp(p, parola) !=0){
+                  printf("[SERVER | login] Eroare la conectare: parola incorecta. \n");
+                   return; }
+                else {
+                    strcpy(clt[poz].nume, username);
+                    clt[poz].logat= true;
+                    incarca_familie(poz);
+                }
+            
+            }
+        }
+
+
+    close(fd); close(fd_fam);
+    printf("[ SERVER | login] Eroare... login esuat.\n");
+    return;
+ }
+
+void logout(int poz){
+    clt[poz].logat = false;
+    printf("[SERVER | logout] Userul %s a fost delogat cu succes.\n", clt[poz].nume);
+}
+
+/*
+void inregistrare_user(char* parametrii){
+   char username[40], parola[40];
+   sscanf(parametrii, "%s %s", username, parola);
+
+   for(int i =0; i <MAX_CLIENTI;i++){
+    if(strcmp(clt[i], nume) ==0)
+    { printf("[SERVER | inregistrare user] Eroare...numele de utilizator este deja folosit de alt user. \n");
+      return;}
+   }
+
+    int x= MAX_CLIENTI;
+    MAX_CLIENTI++;
+    clt[x].fd = -1;
+    strcpy(clt[x].nume, username); 
+    strcpy(clt[x].parola, parola);
+    clt[x].logat =false;
+    printf("[SERVER | inregistrare user] Userul %s a fost inregistrat. Inainte de a avea acces la functionalitati trebuie sa va conectati...\n", username);
+}*/
+
+void inregistrare_useri(char* parametrii ){
+   char username[40], parola[40];
+   sscanf(parametrii, "%s %s", username, parola);
+
+    int fd = open ("utilizatori.txt", O_WRONLY| O_APPEND);
+    if (fd == -1){
+        HANDLE_ERROR("[SERVER | inregistrare useri]Eroare la  deschiderea fisierului utilizatori.txt. ");}  
+    
+    char linie[100];
+    sprintf(linie," %s, %s \n",username, parola );
+    if ( write(fd_file, linie, strlen(linie)) <0 )
+        HANDLE_ERROR("[SERVER | inregistrare useri] eroare la scrierea in fisier.") ;
+    
+  close(fd);
+  printf("[SERVER | inregistrare useri] Userul %s a fost inregistrat in baza de date\n", username);
+}
+
+void sos_alert( int poz){ //broadcasting 
+ int id, lg;
+ char mesaj[200];
+ snprintf(mesaj, "[SERVER |ALERTA SOS] Membrul %s are nevoir de ajutor!", clt[poz].nume);
+ lg= strlen(mesaj);
+
+   for(int ii=0; ii < clt[poz].nr_familii; ii++){
+     id=clt[poz].id_family[ii];
+
+    for(int jj =0; jj <MAX_CLIENTI; jj++){
+        if( clt[jj].fd != -1 && clt[jj].logat && jj!= poz)
+
+           for(int k=0; k < clt[jj].nr_familii; jj++){
+                if(id == clt[jj].id_family[k]){ //system call
+                    if (write(clt[jj].fd, mesaj, lg)< 0) HANDLE_ERROR("[SERVER| SOS] Eroare la trimiterea mesajului de alerta!!");
+                     break; 
+                }
+           }
+    } 
+  }
+}  
+
+void add_location( char* parametrii){
+   
+}
+
+void update_location( char* parametrii){
+
+}
+
+void add_family( char* parametrii){
+
+}
+
+void add_members( char* parametrii){
+
+}
+
+void delete_members( char* parametrii, int poz){
+
+   //facem legatura dintre user -> familii(unde avem numele la admini)
+
+   
+
+}
+
+
+//_________________________________________________________________________________________________
+
+//numele de uliziator va fi unic
+//fiecare familie va avea un  id_family 
+
+void proceseaza_mesaj(char* buf , int poz, int fd){
+
+    char parametrii[300];
+    char *comanda = extragere_comanda(buf, parametrii);
+
+    if(comanda == NULL) return;
+
+    if(strncmp( mesaj, "LOGIN",strlen("LOGIN")) == 0){  //cu parola!!!!!
+        login(parametrii, poz);
+    }
+    else if (strncmp(mesaj, "LOGOUT", strlen("LOGOUT")) == 0){ //trimite mesajla client ca s -a delogat dar si la celelate persone din familie
+        logout(poz);
+    } 
+    else if(strncmp(mesaj, "REGISTER", strlen("REGISTER")) == 0){ //inregistrare user nou
+        inregistrare_user(parametrii);
+    }
+    else if(strncmp(mesaj, "SOS", strlen("SOS")) == 0){ //trimite mesaje de alerta la toti men=mbrii familiei 
+        sos_alert( poz);
+    }
+    else if (strncmp(mesaj, "ADD_LOC", strlen("ADD_LOC")) == 0){ //adauga locatii prestabilite (gen acasa) - poate fi adaugat de oricine din famile
+         add_location(parametrii);
+    }
+    else if (strncmp(mesaj, "UPDATE_LOC", strlen("UPDATE_LOC")) == 0){ //actualizeaza locatia curenta a useruu
+        update_location(parametrii);
+    }
+    else if (strncmp(mesaj, "ADD_FAM", strlen("ADD_FAM")) == 0){ // cine creeaza familia, va fi adminul familiei=> numai el poate sterge membrii 
+        add_family(parametrii);
+    }
+    else if (strncmp(mesaj, "ADD_MEMBERS", strlen("ADD_MEMBERS")) == 0){ //doar adminul 
+        add_members(parametrii);
+    }
+    else if (strncmp(mesaj, "DEL_MEMBERS", strlen("DEL_MEMBERS")) == 0){//doar adminul
+         delete_members(parametrii, poz);
+    }
+    else{
+        printf("[ SERVER | proceseaza mesaj] Comanda invalida. Incercati sa introduceti una dintre comenzile din meniu... \n");
+    }
+
+
+}
+
+
+int main(){
+    initializare();
+    servire_clienti();
+
+    return 0;
+}
