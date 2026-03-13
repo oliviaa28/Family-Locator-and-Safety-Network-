@@ -1,4 +1,4 @@
-# 📍 Family Locator & Safety Network ✨
+# -ˋˏ📍┈┈┈┈ Family Locator & Safety Network ┈┈┈┈ 📍ˏˋ-
 
 Client–server application designed to improve family safety and coordination through **real-time location sharing and emergency alerts**.
 
@@ -6,7 +6,7 @@ The system allows family members to stay connected, track locations and receive 
 
 ---
 
-## ⚙️ Technologies
+##  ✨ִTechnologies ✨ִ
 
 - **C** – core implementation
 - **TCP sockets** – reliable client–server communication
@@ -16,7 +16,7 @@ The system allows family members to stay connected, track locations and receive 
 
 ---
 
-## 🏗 Architecture ｡𖦹°‧
+## ⋆˚꩜｡ Architecture ｡𖦹°‧
 
 The system follows a **centralized client–server architecture**.
 
@@ -47,7 +47,7 @@ is stored in a **relational SQL database** to ensure persistence.
 
 ---
 
-## 🖥 Interface
+## 🌞 Interface 🌞
 
 The graphical interface is implemented using **raylib and Dear ImGui**, providing an intuitive interaction model.
 
@@ -69,7 +69,7 @@ Main components include:
 
 ---
 
-## 📊 Project Purpose
+##  Project Purpose
 
 This project focuses on understanding and implementing:
 
